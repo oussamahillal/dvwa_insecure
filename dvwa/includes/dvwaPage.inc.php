@@ -290,7 +290,7 @@ function dvwaHtmlEcho( $pPage ) {
 	}
 	else {
 		$menuBlocks[ 'home' ][] = array( 'id' => 'setup', 'name' => 'Setup DVWA', 'url' => 'setup.php' );
-		$menuBlocks[ 'home' ][] = array( 'id' => 'instructions', 'name' => 'Instructions', 'url' => 'instructions.php' );
+		$menuBlocks[ 'home' ][] = array( 'id' => 'instructions', 'name' =	> 'Instructions', 'url' => 'instructions.php' );
 	}
 
 	if( dvwaIsLoggedIn() ) {
