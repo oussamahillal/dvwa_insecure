@@ -1,22 +1,22 @@
 <?php
 
-# Start the app with:
-#
-# php -S localhost:8000 -t public
-
 namespace Src;
 
 use OpenApi\Attributes as OAT;
 
+class ApiResponses {
+    public const SUCCESS = 'Successful operation.';
+    public const ERROR = 'Internal Server Error.';
+    public const ana = 'HTTP/1.1 200 OK';
+    public const anae = 'HTTP/1.1 500 Internal Server Error';
+}
+
 class HealthController
 {
-	private $command = null;
-	private $requestMethod = "GET";
-	public const SUCCESS = 'Successful operation.';
-	public const ana = 'HTTP/1.1 200 OK';
-	public const anae = 'HTTP/1.1 500 Internal Server Error';
+	private $command;
+	private $requestMethod;
 
-	public function __construct($requestMethod ,$command) {
+	public function __construct($requestMethod, $command) {
 		$this->requestMethod = $requestMethod;
 		$this->command = $command;
 	}
@@ -25,102 +25,92 @@ class HealthController
 		tags: ["health"],
         path: '/vulnerabilities/api/v2/health/echo',
         operationId: 'echo',
-		description: 'Echo, echo, cho, cho, o o ....',
-        parameters: [
-                new OAT\RequestBody (
-					description: 'Your words.',
-                    content: new OAT\MediaType(
-                        mediaType: 'application/json',
-                        schema: new OAT\Schema(ref: Words::class)
-                    )
-                ),
-
-        ],
+		description: 'Echo back the input words.',
+        requestBody: new OAT\RequestBody(
+			description: 'Your words.',
+            content: new OAT\MediaType(
+                mediaType: 'application/json',
+                schema: new OAT\Schema(ref: Words::class)
+            )
+        ),
         responses: [
             new OAT\Response(
                 response: 200,
-                description: ApiResponses::SUCCESS,
-            ),
+                description: ApiResponses::SUCCESS
+            )
         ]
-    )
-    ]
-	
-	private function echo() {
+    )]
+	private function echo(): array {
 		$input = (array) json_decode(file_get_contents('php://input'), true);
-		if (array_key_exists ("words", $input)) {
-			$words = $input['words'];
 
-			$response['status_code_header'] = ApiResponses::ana;
-			$response['body'] = json_encode (array ("reply" => $words));
-		} else {
-			$response['status_code_header'] = ApiResponses::anae;
-			$response['body'] = json_encode (array ("status" => "Words not specified"));
+		if (isset($input["words"])) {
+			return [
+				'status_code_header' => ApiResponses::ana,
+				'body' => json_encode(["reply" => $input['words']])
+			];
 		}
-		return $response;
+
+		return [
+			'status_code_header' => ApiResponses::anae,
+			'body' => json_encode(["status" => "Words not specified"])
+		];
 	}
 
     #[OAT\Post(
 		tags: ["health"],
         path: '/vulnerabilities/api/v2/health/connectivity',
         operationId: 'checkConnectivity',
-		description: 'The server occasionally loses connectivity to other systems and so this can be used to check connectivity status.',
-        parameters: [
-                new OAT\RequestBody (
-					description: 'Remote host.',
-                    content: new OAT\MediaType(
-                        mediaType: 'application/json',
-                        schema: new OAT\Schema(ref: Target::class)
-                    )
-                ),
-
-        ],
+		description: 'Check connectivity to another system.',
+        requestBody: new OAT\RequestBody(
+			description: 'Remote host.',
+            content: new OAT\MediaType(
+                mediaType: 'application/json',
+                schema: new OAT\Schema(ref: Target::class)
+            )
+        ),
         responses: [
             new OAT\Response(
                 response: 200,
-                description: ApiResponses::SUCCESS,
-            ),
+                description: ApiResponses::SUCCESS
+            )
         ]
-    )
-    ]
-	
+    )]
+	private function checkConnectivity(): array {
+		$input = (array) json_decode(file_get_contents('php://input'), true);
+		$response = [];
 
-     private function checkConnectivity()
-      {
-        $input = (array) json_decode(file_get_contents('php://input'), true);
-        $response = [];
+		if (!isset($input["target"])) {
+			return [
+				'status_code_header' => ApiResponses::anae,
+				'body' => json_encode(["status" => "Target not specified"])
+			];
+		}
 
-        if (array_key_exists("target", $input)) {
-            $target = $input['target'];
+		$target = $input['target'];
 
-             // 🧪 1. Valider que c’est une adresse IP ou un nom d’hôte valide
-            if (filter_var($target, FILTER_VALIDATE_IP) || preg_match('/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/', $target)) {
-            
-                // ✅ 2. Échapper correctement l'argument utilisateur
-                $sanitized_target = escapeshellarg($target);
+		// Valider IP ou nom d’hôte
+		if (filter_var($target, FILTER_VALIDATE_IP) || preg_match('/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/', $target)) {
+			$sanitized_target = escapeshellarg($target);
+			exec("ping -c 1 " . $sanitized_target, $output, $ret_val);
 
-                // 🛡️ 3. Exécuter la commande de manière sûre
-                exec("ping -c 4 " . $sanitized_target, $output, $ret_var);
+			if ($ret_val === 0) {
+				return [
+					'status_code_header' => ApiResponses::ana,
+					'body' => json_encode(["status" => "OK"])
+				];
+			}
 
-                if ($ret_var === 0) {
-                     $response['status_code_header'] = ApiResponses::SUCCESS;
-                     $response['body'] = json_encode(['status' => 'OK']);
-                } else {
-                    $response['status_code_header'] = ApiResponses::ERROR;
-                    $response['body'] = json_encode(['status' => 'Connection failed']);
-            }
+			return [
+				'status_code_header' => ApiResponses::anae,
+				'body' => json_encode(["status" => "Connection failed"])
+			];
+		}
 
-            } else {
-                $response['status_code_header'] = ApiResponses::ERROR;
-                $response['body'] = json_encode(['status' => 'Invalid target format']);
-            }
-
-        } else {
-            $response['status_code_header'] = ApiResponses::ERROR;
-            $response['body'] = json_encode(['status' => 'Target not specified']);
-        }
-
-        return $response;
-    }
+		return [
+			'status_code_header' => ApiResponses::anae,
+			'body' => json_encode(["status" => "Invalid target format"])
+		];
+	}
 
     #[OAT\Get(
 		tags: ["health"],
@@ -130,16 +120,15 @@ class HealthController
         responses: [
             new OAT\Response(
                 response: 200,
-                description: ApiResponses::SUCCESS,
-            ),
+                description: ApiResponses::SUCCESS
+            )
         ]
-    )
-    ]
-	
-	private function getStatus() {
-		$response['status_code_header'] = ApiResponses::ana;
-		$response['body'] = json_encode (array ("status" => "OK"));
-		return $response;
+    )]
+	private function getStatus(): array {
+		return [
+			'status_code_header' => ApiResponses::ana,
+			'body' => json_encode(["status" => "OK"])
+		];
 	}
 
     #[OAT\Get(
@@ -150,58 +139,53 @@ class HealthController
         responses: [
             new OAT\Response(
                 response: 200,
-                description: ApiResponses::SUCCESS,
-            ),
+                description: ApiResponses::SUCCESS
+            )
         ]
-    )
-    ]
-	private function ping() {
-		$response['status_code_header'] = ApiResponses::ana;
-		$response['body'] = json_encode (array ("Ping" => "Pong"));
-		return $response;
+    )]
+	private function ping(): array {
+		return [
+			'status_code_header' => ApiResponses::ana,
+			'body' => json_encode(["ping" => "pong"])
+		];
 	}
 
-	public function processRequest() {
+	public function processRequest(): void {
+		$response = null;
+
 		switch ($this->requestMethod) {
 			case 'POST':
-				switch ($this->command) {
-					case "echo":
-						$response = $this->echo();
-						break;
-					case "connectivity":
-						$response = $this->checkConnectivity();
-						break;
-					default:
-						$gc = new GenericController("notFound");
-						$gc->processRequest();
-						exit();
-				};
+				if ($this->command === 'echo') {
+					$response = $this->echo();
+				} elseif ($this->command === 'connectivity') {
+					$response = $this->checkConnectivity();
+				}
 				break;
 			case 'GET':
-				switch ($this->command) {
-					case "status":
-						$response = $this->getStatus();
-						break;
-					case "ping":
-						$response = $this->ping();
-						break;
-					default:
-						$gc = new GenericController("notFound");
-						$gc->processRequest();
-						exit();
+				if ($this->command === 'status') {
+					$response = $this->getStatus();
+				} elseif ($this->command === 'ping') {
+					$response = $this->ping();
 				}
 				break;
 			case 'OPTIONS':
 				$gc = new GenericController("options");
 				$gc->processRequest();
-				break;
+				return;
 			default:
 				$gc = new GenericController("notSupported");
 				$gc->processRequest();
-				break;
+				return;
 		}
+
+		if (!$response) {
+			$gc = new GenericController("notFound");
+			$gc->processRequest();
+			return;
+		}
+
 		header($response['status_code_header']);
-		if ($response['body']) {
+		if (!empty($response['body'])) {
 			echo $response['body'];
 		}
 	}
