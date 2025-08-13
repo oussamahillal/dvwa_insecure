@@ -1,122 +1,100 @@
 <?php
+declare(strict_types=1);
 
-define( 'DVWA_WEB_PAGE_TO_ROOT', '../' );
-require_once DVWA_WEB_PAGE_TO_ROOT . 'dvwa/includes/dvwaPage.inc.php';
+define('DVWA_WEB_PAGE_TO_ROOT', '../');
+define('HTML_LITERAL', '$html .=');
 
-dvwaPageStartup( array( 'authenticated' ) );
+// Import par namespace (adapter au vrai namespace utilisé dans DVWA)
+use DVWA\Core\Page;
+use DVWA\Core\View;
 
-$page = dvwaPageNewGrab();
-$page[ 'title' ] = 'Source' . $page[ 'title_separator' ].$page[ 'title' ];
+require DVWA_WEB_PAGE_TO_ROOT . 'dvwa/includes/dvwaPage.inc.php';
 
-if (array_key_exists ("id", $_GET)) {
-	$id = $_GET[ 'id' ];
+Page\dvwaPageStartup(['authenticated']);
 
-	$lowsrc = @file_get_contents("./{$id}/source/low.php");
-	$lowsrc = str_replace( array( '$html .=' ), array( 'echo' ), $lowsrc);
-	$lowsrc = highlight_string( $lowsrc, true );
+$page = Page\dvwaPageNewGrab();
+$page['title'] = 'Source' . $page['title_separator'] . $page['title'];
 
-	$medsrc = @file_get_contents("./{$id}/source/medium.php");
-	$medsrc = str_replace( array( '$html .=' ), array( 'echo' ), $medsrc);
-	$medsrc = highlight_string( $medsrc, true );
+// Liste blanche pour éviter la construction de chemin arbitraire
+$allowedIds = [
+    'javascript',
+    'fi',
+    'brute',
+    'csrf',
+    'exec',
+    'sqli',
+    'sqli_blind',
+    'upload',
+    'xss_r',
+    'xss_s',
+    'weak_id',
+    'authbypass',
+    'open_redirect'
+];
 
-	$highsrc = @file_get_contents("./{$id}/source/high.php");
-	$highsrc = str_replace( array( '$html .=' ), array( 'echo' ), $highsrc);
-	$highsrc = highlight_string( $highsrc, true );
+// Mapping vulnérabilité -> nom affiché
+$vulnNames = [
+    'javascript'    => 'JavaScript',
+    'fi'            => 'File Inclusion',
+    'brute'         => 'Brute Force',
+    'csrf'          => 'CSRF',
+    'exec'          => 'Command Injection',
+    'sqli'          => 'SQL Injection',
+    'sqli_blind'    => 'SQL Injection (Blind)',
+    'upload'        => 'File Upload',
+    'xss_r'         => 'Reflected XSS',
+    'xss_s'         => 'Stored XSS',
+    'weak_id'       => 'Weak Session IDs',
+    'authbypass'    => 'Authorisation Bypass',
+    'open_redirect' => 'Open HTTP Redirect'
+];
 
-	$impsrc = @file_get_contents("./{$id}/source/impossible.php");
-	$impsrc = str_replace( array( '$html .=' ), array( 'echo' ), $impsrc);
-	$impsrc = highlight_string( $impsrc, true );
+if (isset($_GET['id']) && in_array($_GET['id'], $allowedIds, true)) {
+    $id = $_GET['id'];
+    $vuln = $vulnNames[$id] ?? 'Unknown Vulnerability';
 
-	switch ($id) {
-		case "javascript" :
-			$vuln = 'JavaScript';
-			break;
-		case "fi" :
-			$vuln = 'File Inclusion';
-			break;
-		case "brute" :
-			$vuln = 'Brute Force';
-			break;
-		case "csrf" :
-			$vuln = 'CSRF';
-			break;
-		case "exec" :
-			$vuln = 'Command Injection';
-			break;
-		case "sqli" :
-			$vuln = 'SQL Injection';
-			break;
-		case "sqli_blind" :
-			$vuln = 'SQL Injection (Blind)';
-			break;
-		case "upload" :
-			$vuln = 'File Upload';
-			break;
-		case "xss_r" :
-			$vuln = 'Reflected XSS';
-			break;
-		case "xss_s" :
-			$vuln = 'Stored XSS';
-			break;
-		case "weak_id" :
-			$vuln = 'Weak Session IDs';
-			break;
-		case "authbypass" :
-			$vuln = 'Authorisation Bypass';
-			break;
-		case "open_redirect" :
-			$vuln = 'Open HTTP Redirect';
-			break;
-		default:
-			$vuln = "Unknown Vulnerability";
-	}
+    // Récupération sécurisée des fichiers
+    $basePath = __DIR__ . "/{$id}/source/";
+    $levels   = ['impossible', 'high', 'medium', 'low'];
 
-	$page[ 'body' ] .= "
-	<div class=\"body_padded\">
-		<h1>{$vuln}</h1>
-		<br />
+    $sources = [];
+    foreach ($levels as $level) {
+        $filePath = $basePath . "{$level}.php";
+        if (is_file($filePath) && is_readable($filePath)) {
+            $src = @file_get_contents($filePath);
+            $src = str_replace([HTML_LITERAL], ['echo'], $src);
+            $sources[$level] = highlight_string($src, true);
+        } else {
+            $sources[$level] = "<em>Source file missing</em>";
+        }
+    }
 
-		<h3>Impossible {$vuln} Source</h3>
-		<table width='100%' bgcolor='white' style=\"border:2px #C0C0C0 solid\">
-			<tr>
-				<td><div id=\"code\">{$impsrc}</div></td>
-			</tr>
-		</table>
-		<br />
+    $page['body'] .= "
+    <div class=\"body_padded\">
+        <h1>{$vuln}</h1>
+        <br />
+    ";
 
-		<h3>High {$vuln} Source</h3>
-		<table width='100%' bgcolor='white' style=\"border:2px #C0C0C0 solid\">
-			<tr>
-				<td><div id=\"code\">{$highsrc}</div></td>
-			</tr>
-		</table>
-		<br />
+    foreach ($levels as $level) {
+        $label = ucfirst($level);
+        $page['body'] .= "
+        <h3>{$label} {$vuln} Source</h3>
+        <table width='100%' bgcolor='white' style=\"border:2px #C0C0C0 solid\">
+            <tr>
+                <td><div id=\"code\">{$sources[$level]}</div></td>
+            </tr>
+        </table>
+        <br />
+        ";
+    }
 
-		<h3>Medium {$vuln} Source</h3>
-		<table width='100%' bgcolor='white' style=\"border:2px #C0C0C0 solid\">
-			<tr>
-				<td><div id=\"code\">{$medsrc}</div></td>
-			</tr>
-		</table>
-		<br />
-
-		<h3>Low {$vuln} Source</h3>
-		<table width='100%' bgcolor='white' style=\"border:2px #C0C0C0 solid\">
-			<tr>
-				<td><div id=\"code\">{$lowsrc}</div></td>
-			</tr>
-		</table>
-		<br /> <br />
-
-		<form>
-			<input type=\"button\" value=\"<-- Back\" onclick=\"history.go(-1);return true;\">
-		</form>
-
-	</div>\n";
+    $page['body'] .= "
+        <form>
+            <input type=\"button\" value=\"<-- Back\" onclick=\"history.go(-1);return true;\">
+        </form>
+    </div>\n";
 } else {
-	$page['body'] = "<p>Not found</p>";
+    $page['body'] = "<p>Not found</p>";
 }
 
-dvwaSourceHtmlEcho( $page );
-
-?>
+View\dvwaSourceHtmlEcho($page);
