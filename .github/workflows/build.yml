@@ -2,22 +2,50 @@ name: Build
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
   pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
-  sonarqube:
-    name: SonarQube
+  build:
     runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # important pour SonarQube
+          fetch-depth: 0
 
+      # Python
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Installer dépendances Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Lancer tests Pytest
+        run: pytest
+
+      # Node.js
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      # CodeQL
+      - uses: github/codeql-action/init@v2
+        with:
+          languages: 'javascript, python'
+      - name: Analyser le code avec CodeQL
+        uses: github/codeql-action/analyze@v2
+
+      # Docker
+      - name: Docker Build
+        run: docker build -t mon_image .
+
+      # SonarQube
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: sonarsource/sonarqube-scan-action@v2
+        with:
+          projectBaseDir: .
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
