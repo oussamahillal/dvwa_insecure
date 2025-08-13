@@ -35,7 +35,7 @@ if (
 
         if (is_readable($helpFile)) {
             ob_start();
-            include $helpFile; // pas de eval()
+            include_once  $helpFile; // pas de eval()
             $help = ob_get_clean();
         } else {
             $help = "<p>Help file not found.</p>";
@@ -58,4 +58,4 @@ $page['body'] .= "
 
 Page\dvwaHelpHtmlEcho($page);
 
-?>
+
