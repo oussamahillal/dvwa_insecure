@@ -1,25 +1,34 @@
 <?php
 if (isset($_POST['Submit'])) {
-    // Récupérer l'input utilisateur
-    $target = $_REQUEST['ip'];
+    $target = $_POST['ip'];
 
-    // Validation stricte : IPv4 ou IPv6
+    // Validation stricte de l'adresse IP
     if (filter_var($target, FILTER_VALIDATE_IP)) {
 
-        // Déterminer l'OS
-        $isWindows = stristr(php_uname('s'), 'Windows NT') !== false;
+        // Nombre de tentatives
+        $count = 4;
+        $timeout = 1; // secondes
 
-        // Construction sécurisée du ping
-        $cmdArgs = $isWindows ? ['ping', '-n', '4', $target] : ['ping', '-c', '4', $target];
+        $results = [];
 
-        // Exécution sécurisée avec escapeshellarg pour chaque argument
-        $escapedCmd = implode(' ', array_map('escapeshellarg', $cmdArgs));
-        $output = shell_exec($escapedCmd);
+        // Vérification de connectivité sans shell
+        for ($i = 0; $i < $count; $i++) {
+            $start = microtime(true);
+            $fp = @fsockopen($target, 80, $errno, $errstr, $timeout);
+            $end = microtime(true);
 
-        // Affichage en toute sécurité
-        $html .= "<pre>" . htmlspecialchars($output) . "</pre>";
+            if ($fp) {
+                fclose($fp);
+                $results[] = "Ping " . ($i + 1) . ": Réussi en " . round(($end - $start) * 1000) . " ms";
+            } else {
+                $results[] = "Ping " . ($i + 1) . ": Échec";
+            }
+        }
+
+        $html = "<pre>" . htmlspecialchars(implode("\n", $results)) . "</pre>";
+
     } else {
-        $html .= "<pre>Adresse IP invalide.</pre>";
+        $html = "<pre>Adresse IP invalide.</pre>";
     }
 }
 
