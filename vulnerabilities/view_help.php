@@ -8,7 +8,8 @@ define('DVWA_WEB_PAGE_TO_ROOT', '../');
 use DVWA\Core\Page; // Exemple : adapter au namespace réel
 use DVWA\Core\Security;
 
-require DVWA_WEB_PAGE_TO_ROOT . 'dvwa/includes/dvwaPage.inc.php';
+// Inclusion sécurisée
+require_once DVWA_WEB_PAGE_TO_ROOT . 'dvwa/includes/dvwaPage.inc.php';
 
 // Démarrage sécurisé
 Page\dvwaPageStartup(['authenticated']);

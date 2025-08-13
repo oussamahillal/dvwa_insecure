@@ -3,48 +3,76 @@ declare(strict_types=1);
 
 define('DVWA_WEB_PAGE_TO_ROOT', '../');
 
-// Importation par espace de noms (adapter au namespace réel)
+// Import par namespace (adapter au vrai namespace)
 use DVWA\Core\Page;
 use DVWA\Core\View;
 
-require DVWA_WEB_PAGE_TO_ROOT . 'dvwa/includes/dvwaPage.inc.php';
-
+// Initialisation via namespace
 Page\dvwaPageStartup(['authenticated']);
 
 $page = Page\dvwaPageNewGrab();
 $page['title'] .= 'Source' . $page['title_separator'] . $page['title'];
 
+// Liste blanche des vulnérabilités et niveaux de sécurité autorisés
+$allowedIds = [
+    "fi", "brute", "csrf", "exec", "sqli", "sqli_blind",
+    "upload", "xss_r", "xss_s", "weak_id", "javascript",
+    "authbypass", "open_redirect"
+];
+
+$allowedSecurityLevels = ["low", "medium", "high", "impossible"];
+
+// Définir les chemins sûrs par combinaison vulnérabilité / niveau
+$allowedPaths = [];
+foreach ($allowedIds as $id) {
+    foreach ($allowedSecurityLevels as $level) {
+        $allowedPaths[$id][$level] = [
+            'php' => realpath(__DIR__ . "/../vulnerabilities/{$id}/source/{$level}.php"),
+            'js'  => realpath(__DIR__ . "/../vulnerabilities/{$id}/source/{$level}.js")
+        ];
+    }
+}
+
 if (isset($_GET['id'], $_GET['security'])) {
-    $id       = $_GET['id'];
+    $id = $_GET['id'];
     $security = $_GET['security'];
 
-    switch ($id) {
-        case "fi":           $vuln = 'File Inclusion'; break;
-        case "brute":        $vuln = 'Brute Force'; break;
-        case "csrf":         $vuln = 'CSRF'; break;
-        case "exec":         $vuln = 'Command Injection'; break;
-        case "sqli":         $vuln = 'SQL Injection'; break;
-        case "sqli_blind":   $vuln = 'SQL Injection (Blind)'; break;
-        case "upload":       $vuln = 'File Upload'; break;
-        case "xss_r":        $vuln = 'Reflected XSS'; break;
-        case "xss_s":        $vuln = 'Stored XSS'; break;
-        case "weak_id":      $vuln = 'Weak Session IDs'; break;
-        case "javascript":   $vuln = 'JavaScript'; break;
-        case "authbypass":   $vuln = 'Authorisation Bypass'; break;
-        case "open_redirect":$vuln = 'Open HTTP Redirect'; break;
-        default:             $vuln = "Unknown Vulnerability";
+    // Vérification whitelist
+    if (!isset($allowedPaths[$id][$security]) || $allowedPaths[$id][$security]['php'] === false) {
+        $page['body'] = "<p>Invalid parameters or source missing.</p>";
+        View\dvwaSourceHtmlEcho($page);
+        exit;
     }
 
-    // Lecture du code source
-    $phpSourcePath = DVWA_WEB_PAGE_TO_ROOT . "vulnerabilities/{$id}/source/{$security}.php";
-    $source = @file_get_contents($phpSourcePath);
+    // Mapping vulnérabilité -> nom
+    $vulnNames = [
+        "fi"           => 'File Inclusion',
+        "brute"        => 'Brute Force',
+        "csrf"         => 'CSRF',
+        "exec"         => 'Command Injection',
+        "sqli"         => 'SQL Injection',
+        "sqli_blind"   => 'SQL Injection (Blind)',
+        "upload"       => 'File Upload',
+        "xss_r"        => 'Reflected XSS',
+        "xss_s"        => 'Stored XSS',
+        "weak_id"      => 'Weak Session IDs',
+        "javascript"   => 'JavaScript',
+        "authbypass"   => 'Authorisation Bypass',
+        "open_redirect"=> 'Open HTTP Redirect'
+    ];
+
+    $vuln = $vulnNames[$id] ?? "Unknown Vulnerability";
+
+    // Lecture PHP sécurisé via chemin whitelist
+    $phpSourcePath = $allowedPaths[$id][$security]['php'];
+    $source = file_get_contents($phpSourcePath);
     $source = str_replace(['$html .='], ['echo'], $source);
 
-    // Lecture éventuelle du JS
+    // Lecture JS sécurisé via chemin whitelist
     $js_html = "";
-    $jsSourcePath = DVWA_WEB_PAGE_TO_ROOT . "vulnerabilities/{$id}/source/{$security}.js";
-    if (file_exists($jsSourcePath)) {
-        $js_source = @file_get_contents($jsSourcePath);
+    $jsSourcePath = $allowedPaths[$id][$security]['js'];
+    if ($jsSourcePath && file_exists($jsSourcePath)) {
+        $js_source = file_get_contents($jsSourcePath);
         $js_html = "
         <h2>vulnerabilities/{$id}/source/{$security}.js</h2>
         <div id=\"code\">
@@ -53,8 +81,7 @@ if (isset($_GET['id'], $_GET['security'])) {
                     <td><div id=\"code\">" . highlight_string($js_source, true) . "</div></td>
                 </tr>
             </table>
-        </div>
-        ";
+        </div>";
     }
 
     $page['body'] .= "
@@ -76,6 +103,7 @@ if (isset($_GET['id'], $_GET['security'])) {
             <input type=\"button\" value=\"Compare All Levels\" onclick=\"window.location.href='view_source_all.php?id={$id}'\">
         </form>
     </div>\n";
+
 } else {
     $page['body'] = "<p>Not found</p>";
 }

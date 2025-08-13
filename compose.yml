@@ -1,10 +1,8 @@
 volumes:
   dvwa:
 
-
 networks:
   dvwa:
-
 
 services:
   dvwa:
@@ -14,11 +12,11 @@ services:
     pull_policy: always
     environment:
       - DB_SERVER=db
+      - DB_USER=${DVWA_DB_USER:-dvwa}
+      - DB_PASSWORD=${DVWA_DB_PASSWORD}        # Mot de passe défini dans le fichier .env
+      - DB_NAME=${DVWA_DB_NAME:-dvwa}
     depends_on:
       - db
-    # Uncomment the next 2 lines to serve local source
-    # volumes:
-    #   - ./:/var/www/html
     networks:
       - dvwa
     ports:
@@ -28,10 +26,10 @@ services:
   db:
     image: docker.io/library/mariadb:10
     environment:
-      - MYSQL_ROOT_PASSWORD=dvwa
-      - MYSQL_DATABASE=dvwa
-      - MYSQL_USER=dvwa
-      - MYSQL_PASSWORD=p@ssw0rd
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}   # À définir dans .env
+      - MYSQL_DATABASE=${DVWA_DB_NAME:-dvwa}
+      - MYSQL_USER=${DVWA_DB_USER:-dvwa}
+      - MYSQL_PASSWORD=${DVWA_DB_PASSWORD}           # À définir dans .env
     volumes:
       - dvwa:/var/lib/mysql
     networks:
